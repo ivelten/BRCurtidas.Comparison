@@ -94,9 +94,3 @@ module UserName =
     let apply f (UserName x) = f x
 
     let value = apply id
-
-module Patterns =
-    let (|Id|_|) (x : string) : Id option =
-        match Guid.TryParse(x) with
-        | (true, g) -> Some g
-        | _ -> None
