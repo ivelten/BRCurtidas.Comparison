@@ -5,6 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="MediaTypes.fs" />
+    <Compile Include="Encodings.fs" />
     <Compile Include="Helpers.fs" />
     <Compile Include="DomainTypes.fs" />
   </ItemGroup>
