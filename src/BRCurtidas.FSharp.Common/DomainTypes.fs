@@ -5,8 +5,6 @@ open System.Text.RegularExpressions
 open Chessie.ErrorHandling
 open System.Collections.Generic
 
-type Id = Guid
-
 type EmailAddress = 
     private | EmailAddress of string
     member this.Value = match this with EmailAddress x -> x
