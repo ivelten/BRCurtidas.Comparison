@@ -1,5 +1,4 @@
-﻿namespace BRCurtidas.FSharp
+﻿[<AutoOpen>]
+module BRCurtidas.FSharp.Helpers
 
-[<AutoOpen>]
-module Helpers =
-    let tee f x = f x; x
+let tee f x = f x; x
