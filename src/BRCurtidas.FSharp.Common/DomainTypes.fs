@@ -94,3 +94,42 @@ module UserName =
     let apply f (UserName x) = f x
 
     let value = apply id
+
+type String25 =
+    private | String25 of string
+    member this.Value = match this with String25 x -> x
+    override this.ToString() = this.Value
+
+[<RequireQualifiedAccess>]
+module String25 =
+    let create x = String.create id 25 [] String25 x
+
+    let apply f (String25 x) = f x
+
+    let value = apply id
+
+type String50 =
+    private | String50 of string
+    member this.Value = match this with String50 x -> x
+    override this.ToString() = this.Value
+
+[<RequireQualifiedAccess>]
+module String50 =
+    let create x = String.create id 50 [] String50 x
+
+    let apply f (String50 x) = f x
+
+    let value = apply id
+
+type String100 =
+    private | String100 of string
+    member this.Value = match this with String100 x -> x
+    override this.ToString() = this.Value
+
+[<RequireQualifiedAccess>]
+module String100 =
+    let create x = String.create id 100 [] String100 x
+
+    let apply f (String100 x) = f x
+
+    let value = apply id
