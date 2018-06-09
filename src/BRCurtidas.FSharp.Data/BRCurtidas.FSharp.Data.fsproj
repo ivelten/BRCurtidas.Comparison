@@ -9,6 +9,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BRCurtidas.FSharp.Common\BRCurtidas.FSharp.Common.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Update="FSharp.Core" Version="4.5.0" />
   </ItemGroup>
 
