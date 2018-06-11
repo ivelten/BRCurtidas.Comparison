@@ -27,7 +27,7 @@ module EmailAddress =
         | null -> fail Missing
         | x ->
             if Regex(regexPattern).IsMatch x
-            then ok (EmailAddress (x.ToLowerInvariant()))
+            then ok (EmailAddress x)
             else fail InvalidEmail
     
     let apply f (EmailAddress x) = f x
