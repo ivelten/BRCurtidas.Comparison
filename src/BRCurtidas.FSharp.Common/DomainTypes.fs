@@ -16,14 +16,18 @@ module EmailAddress =
         | Missing
         | InvalidEmail
 
-    let regexPattern = """(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])"""
+    let [<Literal>] regexPattern = """(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])"""
 
     let create x =
-        match x with
+        let canonicalize (x : string) =
+            match x with
+            | null -> null
+            | x -> x.ToLowerInvariant()
+        match canonicalize x with
         | null -> fail Missing
         | x ->
             if Regex(regexPattern).IsMatch x
-            then ok (EmailAddress x)
+            then ok (EmailAddress (x.ToLowerInvariant()))
             else fail InvalidEmail
     
     let apply f (EmailAddress x) = f x
@@ -37,12 +41,21 @@ type Url =
 
 [<RequireQualifiedAccess>]
 module Url =
-    type Issue = InvalidUrl
+    type Issue = 
+        | Missing
+        | InvalidScheme
+        | InvalidUrl
 
     let create x =
-        match Uri.TryCreate(x, UriKind.Absolute) with
-        | (true, _) -> ok (Url x)
-        | _ -> fail InvalidUrl
+        match x with
+        | null -> fail Missing
+        | x ->
+            match Uri.TryCreate(x, UriKind.Absolute) with
+            | (true, uri) ->
+                match uri.Scheme.ToLowerInvariant() with
+                | "http" | "https" -> ok (Url x)
+                | _ -> fail InvalidScheme
+            | _ -> fail InvalidUrl
 
     let apply f (Url x) = f x
 
@@ -133,3 +146,61 @@ module String100 =
     let apply f (String100 x) = f x
 
     let value = apply id
+
+type Cpf =
+    private | Cpf of string
+    member this.Value = match this with Cpf x -> x
+    override this.ToString() = this.Value
+
+[<RequireQualifiedAccess>]
+module Cpf =
+    type Issue =
+        | Missing
+        | InvalidCpfFormat
+        | AllDigitsMustBeNumbers
+        | InvalidVerifyingDigits
+
+    let [<Literal>] regexPattern = """/^\d{3}\.\d{3}\.\d{3}\-\d{2}$/"""
+
+    let create (x : string) =
+        let canonicalize (x : string) = 
+            x.Trim().Replace(".", "").Replace("-", "")
+        let allDigitsAreNumbers (x : string) =
+            x |> Seq.forall (fun c -> Char.IsNumber(c))
+        let verifyingDigitsAreCorrect (x : string) =
+            let numbers = x.Substring(0, 9)
+            let folder (sum, i) n =
+                let n = int (Char.GetNumericValue(n))
+                (sum + n * i, i - 1)
+            let sum = 
+                numbers
+                |> Seq.fold folder (0, 10) 
+                |> fst 
+                |> (%) 11
+            let rem x =
+                match x with
+                | x when x < 2 -> "0"
+                | x -> (11 - x).ToString()
+            let digit = rem sum
+            let numbers = numbers + digit
+            let sum =
+                numbers
+                |> Seq.fold folder (0, 11)
+                |> fst
+                |> (%) 11
+            let digit = digit + (rem sum)
+            x.EndsWith(digit)
+        if isNull x
+        then fail Missing
+        else
+            if not (Regex(regexPattern).IsMatch(x))
+            then fail InvalidCpfFormat
+            else
+                let x = canonicalize x
+                if not (allDigitsAreNumbers x)
+                then fail AllDigitsMustBeNumbers
+                elif not (verifyingDigitsAreCorrect x)
+                then fail InvalidVerifyingDigits
+                else ok (Cpf x)
+                
+                
