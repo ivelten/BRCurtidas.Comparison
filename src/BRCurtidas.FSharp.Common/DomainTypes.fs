@@ -4,17 +4,23 @@ open System
 open System.Text.RegularExpressions
 open Chessie.ErrorHandling
 open System.Collections.Generic
+open BCrypt.Net
+open System.Globalization
 
-type EmailAddress = 
+type EmailAddress =
     private | EmailAddress of string
     member this.Value = match this with EmailAddress x -> x
     override this.ToString() = this.Value
 
 [<RequireQualifiedAccess>]
 module EmailAddress =
-    type Issue = 
+    type Issue =
         | Missing
         | InvalidEmail
+        override this.ToString() =
+            match this with
+            | Missing -> "E-mail address is missing."
+            | InvalidEmail -> "Email address is not valid."
 
     let [<Literal>] regexPattern = """(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])"""
 
@@ -29,7 +35,7 @@ module EmailAddress =
             if Regex(regexPattern).IsMatch x
             then ok (EmailAddress x)
             else fail InvalidEmail
-    
+
     let apply f (EmailAddress x) = f x
 
     let value = apply id
@@ -41,10 +47,15 @@ type Url =
 
 [<RequireQualifiedAccess>]
 module Url =
-    type Issue = 
+    type Issue =
         | Missing
         | InvalidScheme
         | InvalidUrl
+        override this.ToString() =
+            match this with
+            | Missing -> "URL is missing."
+            | InvalidScheme -> "URL scheme is invalid. Accepted schemes are http and https."
+            | InvalidUrl -> "URL format is not valid."
 
     let create x =
         match x with
@@ -61,17 +72,67 @@ module Url =
 
     let value = apply id
 
+module Comparable =
+    type Issue<'a when 'a : comparison> =
+        | MustNotBeMoreThan of 'a
+        | MustNotBeLessThan of 'a
+        | MustNotHaveValues of 'a list
+        override this.ToString() =
+            match this with
+            | MustNotBeMoreThan x -> sprintf "Value must not be longer than %A." x
+            | MustNotBeLessThan x -> sprintf "Value must not be less than %A." x
+            | MustNotHaveValues x -> sprintf "Value must not equals any of the following values: %A" x
+
+    let create min max invalidValues ctor (x : 'a when 'a : comparison) =
+        let validate (x : 'a) =
+            List<Issue<'a>>()
+            |> tee (fun issues ->
+                if x < min then issues.Add(MustNotBeLessThan min)
+                if x > max then issues.Add(MustNotBeMoreThan max)
+                let containsValues = invalidValues |> Seq.contains x
+                if containsValues then issues.Add(MustNotHaveValues invalidValues))
+            |> List.ofSeq
+        match validate x with
+        | [] -> ok (ctor x)
+        | x :: xs -> fail x |> mergeMessages xs
+
+type Id =
+    private | Id of int64
+    member this.Value = match this with Id x -> x
+    override this.ToString() = this.Value.ToString()
+
+[<RequireQualifiedAccess>]
+module Id =
+    let create x = Comparable.create 1L Int64.MaxValue [] Id x
+
+    let apply f (Id x) = f x
+
+    let value = apply id
+
+type Quantity =
+    private | Units of int
+    member this.Value = match this with | Units x -> x
+    override this.ToString() = this.Value.ToString()
+
+[<RequireQualifiedAccess>]
+module Quantity =
+    let create x = Comparable.create 0 Int32.MaxValue [] Units x
+
+    let apply f (Units x) = f x
+
+    let value = apply id
+
 [<RequireQualifiedAccess>]
 module String =
     type Issue =
         | Missing
         | MustNotBeLongerThan of int
         | MustNotHaveChars of char list
-
-    let map f = 
-        function
-        | null -> null
-        | x -> f x : string
+        override this.ToString() =
+            match this with
+            | Missing -> "Text value is missing."
+            | MustNotBeLongerThan x -> sprintf "Text value must not have more than %i characters." x
+            | MustNotHaveChars x -> sprintf "Text value must not have any of the following characters: %A" x
 
     let create (canonicalize : string -> string) length (invalidChars : char list) ctor (x : string) =
         let validate (x : string) =
@@ -98,26 +159,13 @@ type UserName =
 module UserName =
     let create x =
         let invalidChars = [ ' ' ]
-        let canonicalize (x : string) = 
+        let canonicalize (x : string) =
             match x with
             | null -> null
             | x -> x.ToLowerInvariant()
         String.create canonicalize 20 invalidChars UserName x
 
     let apply f (UserName x) = f x
-
-    let value = apply id
-
-type String25 =
-    private | String25 of string
-    member this.Value = match this with String25 x -> x
-    override this.ToString() = this.Value
-
-[<RequireQualifiedAccess>]
-module String25 =
-    let create x = String.create id 25 [] String25 x
-
-    let apply f (String25 x) = f x
 
     let value = apply id
 
@@ -157,25 +205,27 @@ module Cpf =
     type Issue =
         | Missing
         | InvalidCpfFormat
-        | AllDigitsMustBeNumbers
         | InvalidVerifyingDigits
+        override this.ToString() =
+            match this with
+            | Missing -> "CPF is missing."
+            | InvalidCpfFormat -> "CPF number is not recognized as a valid CPF."
+            | InvalidVerifyingDigits -> "Verifying digits of CPF are not valid."
 
     let [<Literal>] regexPattern = """/^\d{3}\.\d{3}\.\d{3}\-\d{2}$/"""
 
     let create (x : string) =
-        let canonicalize (x : string) = 
+        let canonicalize (x : string) =
             x.Trim().Replace(".", "").Replace("-", "")
-        let allDigitsAreNumbers (x : string) =
-            x |> Seq.forall (fun c -> Char.IsNumber(c))
         let verifyingDigitsAreCorrect (x : string) =
             let numbers = x.Substring(0, 9)
-            let folder (sum, i) n =
-                let n = int (Char.GetNumericValue(n))
-                (sum + n * i, i - 1)
-            let sum = 
+            let mapper x = int (Char.GetNumericValue(x))
+            let folder (sum, i) n = (sum + n * i, i - 1)
+            let sum =
                 numbers
-                |> Seq.fold folder (0, 10) 
-                |> fst 
+                |> Seq.map mapper
+                |> Seq.fold folder (0, 10)
+                |> fst
                 |> (%) 11
             let rem x =
                 match x with
@@ -185,6 +235,7 @@ module Cpf =
             let numbers = numbers + digit
             let sum =
                 numbers
+                |> Seq.map mapper
                 |> Seq.fold folder (0, 11)
                 |> fst
                 |> (%) 11
@@ -197,10 +248,117 @@ module Cpf =
             then fail InvalidCpfFormat
             else
                 let x = canonicalize x
-                if not (allDigitsAreNumbers x)
-                then fail AllDigitsMustBeNumbers
-                elif not (verifyingDigitsAreCorrect x)
+                if not (verifyingDigitsAreCorrect x)
                 then fail InvalidVerifyingDigits
                 else ok (Cpf x)
-                
-                
+
+type PasswordHashInfo =
+    { Settings : string
+      Version : string
+      WorkFactor : string }
+
+type PasswordHash =
+    private | Hash of string * PasswordHashInfo
+    member this.Value = match this with Hash (x, _) -> x
+    member this.Info = match this with Hash(_, x) -> x
+    override this.ToString() = this.Value
+
+[<RequireQualifiedAccess>]
+module PasswordHash =
+    type Issue =
+        | EmptyPassword
+        | InvalidHash of string
+        override this.ToString() =
+            match this with
+            | InvalidHash x -> sprintf "Hash is not recognized as a valid hash. An error ocurred while analyzing the hash text: %s" x
+            | EmptyPassword -> "Password is empty. Hash can not be generated."
+
+    let private createHashInfo (x : HashInformation) =
+        { Settings = x.Settings
+          Version = x.Version
+          WorkFactor = x.WorkFactor }
+
+    let ofPassword x =
+        if isNull x
+        then fail EmptyPassword
+        else
+            let h = BCrypt.HashPassword(x)
+            let i = createHashInfo (BCrypt.InterrogateHash(h))
+            ok (Hash (h, i))
+
+    let create x =
+        try
+            let i = createHashInfo (BCrypt.InterrogateHash(x))
+            ok (Hash (x, i))
+        with
+        | e -> fail (InvalidHash e.Message)
+
+    let verify x (Hash (hash, _)) =
+        BCrypt.Verify(x, hash)
+
+    let apply f (Hash (h, i)) = f h i
+
+    let value = apply (fun h _ -> h)
+
+    let info = apply (fun _ i -> i)
+
+type PhoneNumber =
+    private | PhoneNumber of string
+    member this.Value = match this with PhoneNumber x -> x
+    override this.ToString() = this.Value
+
+[<RequireQualifiedAccess>]
+module PhoneNumber =
+    type Issue =
+        | Missing
+        | InvalidPhone
+        override this.ToString() =
+            match this with
+            | Missing -> "Phone number is missing."
+            | InvalidPhone -> "Phone number is not recognized as a valid phone number."
+
+    let [<Literal>] regexPattern = """/^(?:(?:\+|00)?(55)\s?)?(?:\(?([1-9][0-9])\)?\s?)?(?:((?:9\d|[2-9])\d{3})\-?(\d{4}))$/"""
+
+    let create x =
+        match x with
+        | null -> fail Missing
+        | x ->
+            if Regex(regexPattern).IsMatch(x)
+            then ok (PhoneNumber x)
+            else fail InvalidPhone
+
+    let apply f (PhoneNumber x) = f x
+
+    let value = apply id
+
+type Currency =
+    private | BRL of decimal
+    member this.Value = match this with BRL x -> x
+    override this.ToString() = this.Value.ToString("c", CultureInfo.GetCultureInfo("pt-BR"))
+
+[<RequireQualifiedAccess>]
+module Currency =
+    type Issue =
+        | TooManyCents
+        | MustBeMoreThanZero
+
+    let create x =
+        let validate x =
+            let getDecimalPlaces x =
+                let rec helper acc (x : decimal) =
+                    if x % 1M = 0M
+                    then helper (acc + 1) (x * 10M)
+                    else acc
+                helper 0 x
+            List<Issue>()
+            |> tee (fun issues ->
+                if getDecimalPlaces x <> 2 then issues.Add(TooManyCents)
+                if x < 0M then issues.Add(MustBeMoreThanZero))
+            |> List.ofSeq
+        match validate x with
+        | [] -> ok (BRL x)
+        | x :: xs -> fail x |> mergeMessages xs
+
+    let apply f (BRL x) = f x
+
+    let value = apply id

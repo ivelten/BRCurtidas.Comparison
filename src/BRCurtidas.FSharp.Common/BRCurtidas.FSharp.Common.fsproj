@@ -5,13 +5,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Helpers.fs" />
     <Compile Include="MediaTypes.fs" />
     <Compile Include="Encodings.fs" />
-    <Compile Include="Helpers.fs" />
     <Compile Include="DomainTypes.fs" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="2.1.3" />
     <PackageReference Include="Chessie" Version="0.6.0" />
   </ItemGroup>
 
