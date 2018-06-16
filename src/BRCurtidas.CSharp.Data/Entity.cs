@@ -16,6 +16,8 @@ namespace BRCurtidas.CSharp.Data
             return casted.Id == Id;
         }
 
+        public T Value { get; set; }
+
         public override int GetHashCode()
         {
             return Id.GetHashCode();

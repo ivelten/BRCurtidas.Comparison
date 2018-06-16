@@ -1,7 +1,8 @@
 namespace BRCurtidas.FSharp.Data
 
-open BRCurtidas.FSharp
 open System
+open BRCurtidas.FSharp
+open Chessie.ErrorHandling
 
 [<CustomEquality; NoComparison>]
 type Entity<'T> =
@@ -12,6 +13,11 @@ type Entity<'T> =
         | :? Entity<'T> as x -> x.Id = this.Id
         | _ -> false
     override this.GetHashCode() = this.Id.Value.GetHashCode()
+
+module Entity =
+    let create id value = trial {
+        let! id = Id.create id |> stringifyFailure
+        return { Id = id; Value = value } }
 
 type Account =
     { UserName : UserName
@@ -41,13 +47,13 @@ and OrderStatus =
     | Cancelled = 4
     | Delivered = 5
 
-and SocialNetworkType =
+and SocialNetwork =
     | Facebook = 1
     | Instagram = 2
     | YouTube = 3
 
 and SocialNetworkAccount =
-    { Type : SocialNetworkType
+    { SocialNetwork : SocialNetwork
       Profile : Url }
 
 and Payment =
@@ -69,3 +75,54 @@ and Order =
       Price : Currency
       Created : DateTime
       SocialNetworkAccount : SocialNetworkAccount }
+
+module Account =
+    let create userName password = trial {
+        let! userName = UserName.create userName |> stringifyFailure
+        let! passwordHash = PasswordHash.ofPassword password |> stringifyFailure
+        return { UserName = userName; PasswordHash = passwordHash } }
+
+module Address =
+    let create line1 line2 = trial {
+        let! line1 = String100.create line1 |> stringifyFailure
+        match line2 with
+        | Some line2 ->
+            let! line2 = String100.create line2 |> stringifyFailure
+            return { Line1 = line1; Line2 = Some line2 }
+        | None -> return { Line1 = line1; Line2 = None } }
+
+module User =
+    let create name email cpf phone account address = trial {
+        let! name = String50.create name |> stringifyFailure
+        let! email = EmailAddress.create email |> stringifyFailure
+        let! cpf = Cpf.create cpf |> stringifyFailure
+        let! phone = PhoneNumber.create phone |> stringifyFailure
+        return { Name = name; Email = email; Cpf = cpf; Phone = phone; Account = account; Address = address } }
+
+module Product =
+    let create price enabled description title = trial {
+        let! price = Currency.create price |> stringifyFailure
+        let! description = String100.create description |> stringifyFailure
+        let! title = String50.create title |> stringifyFailure
+        return { Price = price; Enabled = enabled; Description = description; Title = title } }
+
+module SocialNetworkAccount =
+    let create network profile = trial {
+        let! profile = Url.create profile |> stringifyFailure
+        return { SocialNetwork = network; Profile = profile } }
+
+module Order =
+    let create user (product : Product) payment status qty network = trial {
+        let! qty = Quantity.create qty |> stringifyFailure
+        let! price =
+            (decimal qty.Value) * product.Price.Value
+            |> Currency.create
+            |> stringifyFailure
+        return { User = user
+                 Product = product
+                 Payment = payment
+                 Status = status
+                 Quantity = qty
+                 Price = price
+                 Created = DateTime.Now
+                 SocialNetworkAccount = network } }

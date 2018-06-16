@@ -19,7 +19,7 @@ namespace BRCurtidas.CSharp.Common.DomainTypes
             Value = cpf;
         }
 
-        public const string RegexPattern = @"/^\d{3}\.\d{3}\.\d{3}\-\d{2}$/";
+        public const string RegexPattern = @"^\d{3}\.\d{3}\.\d{3}-\d{2}$";
 
         private static string Canonicalize(string cpf)
         {

@@ -9,7 +9,7 @@ namespace BRCurtidas.CSharp.Common.DomainTypes
             if (amount < 0)
                 throw new ArgumentException("Amount must be more than zero.", nameof(amount));
 
-            if (GetDecimalPlaces(amount) != 2)
+            if (GetDecimalPlaces(amount) > 2)
                 throw new ArgumentException("Too many digits places for cents. Amount should have cents of only two digits.");
 
             Value = amount;
@@ -17,7 +17,7 @@ namespace BRCurtidas.CSharp.Common.DomainTypes
 
         private static int GetDecimalPlaces(decimal x, int acc = 0)
         {
-            if (x % 1M == 0M)
+            if (x % 1M != 0M)
                 return GetDecimalPlaces(x * 10M, acc + 1);
             else
                 return acc;

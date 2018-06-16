@@ -22,7 +22,7 @@ module EmailAddress =
             | Missing -> "E-mail address is missing."
             | InvalidEmail -> "Email address is not valid."
 
-    let [<Literal>] regexPattern = """(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])"""
+    let [<Literal>] RegexPattern = """(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])"""
 
     let create x =
         let canonicalize (x : string) =
@@ -32,7 +32,7 @@ module EmailAddress =
         match canonicalize x with
         | null -> fail Missing
         | x ->
-            if Regex(regexPattern).IsMatch x
+            if Regex(RegexPattern).IsMatch x
             then ok (EmailAddress x)
             else fail InvalidEmail
 
@@ -212,39 +212,37 @@ module Cpf =
             | InvalidCpfFormat -> "CPF number is not recognized as a valid CPF."
             | InvalidVerifyingDigits -> "Verifying digits of CPF are not valid."
 
-    let [<Literal>] regexPattern = """/^\d{3}\.\d{3}\.\d{3}\-\d{2}$/"""
+    let [<Literal>] RegexPattern = """^\d{3}\.\d{3}\.\d{3}-\d{2}$"""
 
     let create (x : string) =
         let canonicalize (x : string) =
             x.Trim().Replace(".", "").Replace("-", "")
         let verifyingDigitsAreCorrect (x : string) =
             let numbers = x.Substring(0, 9)
-            let mapper x = int (Char.GetNumericValue(x))
+            let mapper x = Int32.Parse(x.ToString())
             let folder (sum, i) n = (sum + n * i, i - 1)
             let sum =
                 numbers
                 |> Seq.map mapper
                 |> Seq.fold folder (0, 10)
                 |> fst
-                |> (%) 11
             let rem x =
                 match x with
                 | x when x < 2 -> "0"
                 | x -> (11 - x).ToString()
-            let digit = rem sum
+            let digit = rem (sum % 11)
             let numbers = numbers + digit
             let sum =
                 numbers
                 |> Seq.map mapper
                 |> Seq.fold folder (0, 11)
                 |> fst
-                |> (%) 11
-            let digit = digit + (rem sum)
+            let digit = digit + (rem (sum % 11))
             x.EndsWith(digit)
         if isNull x
         then fail Missing
         else
-            if not (Regex(regexPattern).IsMatch(x))
+            if not (Regex(RegexPattern).IsMatch(x))
             then fail InvalidCpfFormat
             else
                 let x = canonicalize x
@@ -317,13 +315,13 @@ module PhoneNumber =
             | Missing -> "Phone number is missing."
             | InvalidPhone -> "Phone number is not recognized as a valid phone number."
 
-    let [<Literal>] regexPattern = """/^(?:(?:\+|00)?(55)\s?)?(?:\(?([1-9][0-9])\)?\s?)?(?:((?:9\d|[2-9])\d{3})\-?(\d{4}))$/"""
+    let [<Literal>] RegexPattern = """^(?:(?:\+|00)?(55)\s?)?(?:\(?([1-9][0-9])\)?\s?)?(?:((?:9\d|[2-9])\d{3})\-?(\d{4}))$"""
 
     let create x =
         match x with
         | null -> fail Missing
         | x ->
-            if Regex(regexPattern).IsMatch(x)
+            if Regex(RegexPattern).IsMatch(x)
             then ok (PhoneNumber x)
             else fail InvalidPhone
 
@@ -341,18 +339,22 @@ module Currency =
     type Issue =
         | TooManyCents
         | MustBeMoreThanZero
+        override this.ToString() =
+            match this with
+            | TooManyCents -> "There are too many cents on the value. Cents must not have more than two digits."
+            | MustBeMoreThanZero -> "Amount must be more than zero."
 
     let create x =
         let validate x =
             let getDecimalPlaces x =
                 let rec helper acc (x : decimal) =
-                    if x % 1M = 0M
+                    if x % 1M <> 0M
                     then helper (acc + 1) (x * 10M)
                     else acc
                 helper 0 x
             List<Issue>()
             |> tee (fun issues ->
-                if getDecimalPlaces x <> 2 then issues.Add(TooManyCents)
+                if getDecimalPlaces x > 2 then issues.Add(TooManyCents)
                 if x < 0M then issues.Add(MustBeMoreThanZero))
             |> List.ofSeq
         match validate x with

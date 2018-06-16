@@ -4,12 +4,12 @@ namespace BRCurtidas.CSharp.Common.DomainTypes
 {
     public class Quantity
     {
-        public Quantity(int id)
+        public Quantity(int value)
         {
-            if (id < 0)
-                throw new ArgumentException("Value must be longer than 0.", nameof(id));
+            if (value < 0)
+                throw new ArgumentException("Value must be longer than 0.", nameof(value));
 
-            Value = id;
+            Value = value;
         }
 
         public int Value { get; private set; }

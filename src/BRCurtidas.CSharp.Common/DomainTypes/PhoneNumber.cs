@@ -16,7 +16,7 @@ namespace BRCurtidas.CSharp.Common.DomainTypes
             Value = number;
         }
 
-        public const string RegexPattern = @"/^(?:(?:\+|00)?(55)\s?)?(?:\(?([1-9][0-9])\)?\s?)?(?:((?:9\d|[2-9])\d{3})\-?(\d{4}))$/";
+        public const string RegexPattern = @"^(?:(?:\+|00)?(55)\s?)?(?:\(?([1-9][0-9])\)?\s?)?(?:((?:9\d|[2-9])\d{3})\-?(\d{4}))$";
 
         private static bool IsValidFormat(string number)
         {
