@@ -6,8 +6,6 @@
 
   <ItemGroup>
     <Compile Include="Helpers.fs" />
-    <Compile Include="MediaTypes.fs" />
-    <Compile Include="Encodings.fs" />
     <Compile Include="DomainTypes.fs" />
   </ItemGroup>
 
